@@ -1,0 +1,11 @@
+{
+  "name": "SimpleTabGroupSaver",
+  "version": "1.0",
+  "description": "SimpleTabGroupSaver",
+  "permissions": ["activeTab", "declarativeContent", "storage", "tabs", "tabGroups"],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "manifest_version": 3
+}
+
