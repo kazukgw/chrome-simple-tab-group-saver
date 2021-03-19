@@ -10,18 +10,18 @@ const colorCode = {
 };
 
 const TabGroups = {
-  getInactives: ()=>{
-    return new Promise((res, rej)=>{
-      chrome.storage.sync.get(null, (data)=>{
+  getInactives: () => {
+    return new Promise((res, rej) => {
+      chrome.storage.sync.get(null, (data) => {
         res(data);
       });
     });
   },
 
-  getActives: ()=>{
-    return new Promise((res, rej)=>{
-      chrome.tabGroups.query({}, (tgList)=>{
-        const tgs = tgList.reduce((acc, tg)=>{
+  getActives: () => {
+    return new Promise((res, rej) => {
+      chrome.tabGroups.query({}, (tgList) => {
+        const tgs = tgList.reduce((acc, tg) => {
           const tgid = _btoa(tg.title);
           tg.tgid = tgid;
           acc[tgid] = tg;
@@ -32,81 +32,85 @@ const TabGroups = {
     })
   },
 
-  deactivateTabGroup: (tgid)=>{
-    return new Promise((res, rej)=>{
-      TabGroups.getActives().then((tgs)=>{
+  deactivateTabGroup: (tgid) => {
+    return new Promise((res, rej) => {
+      TabGroups.getActives().then((tgs) => {
         const tg = tgs[tgid]
-        if(tg == null) {
+        if (tg == null) {
           return rej("error");
         }
         return res(tg);
       })
     })
-    .then((tg)=>{
-      return new Promise((res, rej)=>{
-        chrome.tabs.query({}, (tabs)=>{
-          tg.tabs = tabs
-                      .filter((t)=>{ return tg.id === t.groupId })
-                      .map((t)=>{ return {id: t.id, url: t.url} });
-          return res(tg);
+      .then((tg) => {
+        return new Promise((res, rej) => {
+          chrome.tabs.query({}, (tabs) => {
+            tg.tabs = tabs
+              .filter((t) => { return tg.id === t.groupId })
+              .map((t) => { return { id: t.id, url: t.url, favIconUrl: t.favIconUrl, title: t.title } });
+            return res(tg);
+          });
+        });
+      })
+      .then((tg) => {
+        return new Promise((res, rej) => {
+          const data = {};
+          data[tgid] = tg;
+          chrome.storage.sync.set(data, () => {
+            return res(tg);
+          });
+        });
+      })
+      .then((tg) => {
+        return new Promise((res, rej) => {
+          chrome.tabs.remove(tg.tabs.map((tab) => tab.id), () => {
+            return res(tg);
+          });
         });
       });
-    })
-    .then((tg)=>{
-      return new Promise((res, rej)=>{
-        const data = {};
-        data[tgid] = tg;
-        chrome.storage.sync.set(data, ()=>{
-          return res(tg);
-        });
-      });
-    })
-    .then((tg)=>{
-      return new Promise((res, rej)=>{
-        chrome.tabs.remove(tg.tabs.map((tab)=>tab.id), ()=>{
-          return res(tg);
-        });
-      });
+  },
+
+  deleteInactiveTabGroup: (tgid) => {
+    return new Promise((res, rej) => {
+      chrome.storage.sync.remove(tgid, () => { res() });
     });
   },
 
-  deleteInactiveTabGroup: (tgid)=>{
-    return new Promise((res, rej)=>{
-      chrome.storage.sync.remove(tgid, ()=>{res()});
-    });
-  },
-
-  activateTabGroup: (tgid)=>{
-    return new Promise((res, rej)=>{
-      TabGroups.getInactives().then((tgs)=>{
+  activateTabGroup: (tgid) => {
+    return new Promise((res, rej) => {
+      TabGroups.getInactives().then((tgs) => {
         const tg = tgs[tgid];
-        if(tg == null) {
+        if (tg == null) {
           return rej();
         }
         return res(tg)
       });
     })
-    .then((tg)=>{
-      const promises = [];
-      return new Promise((res, rej)=>{
-        tg.tabs.forEach((tab)=>{
-          promises.push(
-            new Promise((_res, _)=>{
-              chrome.tabs.create({url: tab.url, active: false}, (t)=>{_res(t)});
-            })
-          );
-        });
-        return Promise.all(promises).then((tabs)=>{
-          const tabIds = tabs.map((t)=>t.id);
-          chrome.tabs.group({tabIds: tabIds}, (groupId)=>{
-            chrome.tabGroups.update(groupId, {title: tg.title, color: tg.color, collapsed: true}, ()=>{
-              chrome.storage.sync.remove(tg.tgid);
-              return res(tg);
+      .then((tg) => {
+        const promises = [];
+        return new Promise((res, rej) => {
+          tg.tabs.forEach((tab) => {
+            promises.push(
+              new Promise((_res, _) => {
+                const url = `javascript:(()=>{
+                document.querySelector('head').insertAdjacentHTML('beforeend', '<title>${tab.title}</title>');
+                document.addEventListener('visibilitychange', ()=>{window.location.href="${tab.url}"});
+              })() `;
+                chrome.tabs.create({ url: url, active: false }, (t) => { _res(t) });
+              })
+            );
+          });
+          return Promise.all(promises).then((tabs) => {
+            const tabIds = tabs.map((t) => t.id);
+            chrome.tabs.group({ tabIds: tabIds }, (groupId) => {
+              chrome.tabGroups.update(groupId, { title: tg.title, color: tg.color, collapsed: true }, () => {
+                chrome.storage.sync.remove(tg.tgid);
+                return res(tg);
+              });
             });
           });
         });
       });
-    });
   }
 }
 
@@ -117,29 +121,29 @@ class UITabGroupBox {
     this.reset();
   }
 
-  reset(){
-    TabGroups.getActives().then((tgs)=>{
+  reset() {
+    TabGroups.getActives().then((tgs) => {
       this.$active.innerHTML = '';
-      Object.values(tgs).forEach((tg)=>{
+      Object.values(tgs).forEach((tg) => {
         this.addActive(tg);
       });
       this.$active.querySelectorAll(".tab-group")
-        .forEach((el)=>{
+        .forEach((el) => {
           el.addEventListener("click", this.deactivate.bind(this), false);
         });
     });
 
-    TabGroups.getInactives().then((tgs)=>{
+    TabGroups.getInactives().then((tgs) => {
       this.$inactive.innerHTML = '';
-      Object.values(tgs).forEach((tg)=>{
+      Object.values(tgs).forEach((tg) => {
         this.addInactive(tg);
       });
       this.$inactive.querySelectorAll(".tab-group")
-        .forEach((el)=>{
+        .forEach((el) => {
           el.addEventListener("click", this.activate.bind(this), false);
         });
       this.$inactive.querySelectorAll(".close-button")
-        .forEach((el)=>{
+        .forEach((el) => {
           el.addEventListener("click", this.deleteInactiveTabGroup.bind(this), false);
         });
     });
@@ -150,9 +154,9 @@ class UITabGroupBox {
     ev.preventDefault();
     const elem = ev.currentTarget;
     const tgid = elem.getAttribute("id");
-    TabGroups.activateTabGroup(tgid).then((tg)=>{
+    TabGroups.activateTabGroup(tgid).then((tg) => {
       this.reset();
-    }, (reason)=>{ console.log(reason); });
+    }, (reason) => { console.log(reason); });
   }
 
   deactivate(ev) {
@@ -160,9 +164,9 @@ class UITabGroupBox {
     ev.preventDefault();
     const elem = ev.currentTarget;
     const tgid = elem.getAttribute("id");
-    TabGroups.deactivateTabGroup(tgid).then((tg)=>{
+    TabGroups.deactivateTabGroup(tgid).then((tg) => {
       this.reset();
-    }, (reason)=>{ console.log(reason); });
+    }, (reason) => { console.log(reason); });
   }
 
   addActive(tg) {
@@ -195,13 +199,13 @@ class UITabGroupBox {
   deleteInactiveTabGroup(ev) {
     const elem = ev.currentTarget;
     const tgid = elem.getAttribute("data-tgid");
-    TabGroups.deleteInactiveTabGroup(tgid).then(()=>{
+    TabGroups.deleteInactiveTabGroup(tgid).then(() => {
       this.reset();
     });
   }
 }
 
-(()=>{
+(() => {
   const ui = new UITabGroupBox(
     document.querySelector("#active-tab-group-box"),
     document.querySelector("#inactive-tab-group-box")
@@ -211,3 +215,4 @@ class UITabGroupBox {
 function _btoa(str) {
   return window.btoa(unescape(encodeURIComponent(str))).replaceAll("=", "-");
 }
+

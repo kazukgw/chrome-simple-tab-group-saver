@@ -1,10 +1,16 @@
 {
   "name": "SimpleTabGroupSaver",
   "version": "1.0",
+  "icons": {
+    "16": "stgs-logo.png",
+    "48": "stgs-logo.png",
+    "128": "stgs-logo.png"
+  },
   "description": "SimpleTabGroupSaver",
   "permissions": ["activeTab", "declarativeContent", "storage", "tabs", "tabGroups"],
   "action": {
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": "stgs-logo.png"
   },
   "manifest_version": 3
 }
