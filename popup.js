@@ -11,7 +11,7 @@ const colorCode = {
 
 const TabGroups = {
   getInactives: () => {
-    return new Promise((res, rej) => {
+    return new Promise((res) => {
       chrome.storage.sync.get(null, (data) => {
         res(data);
       });
@@ -19,7 +19,7 @@ const TabGroups = {
   },
 
   getActives: () => {
-    return new Promise((res, rej) => {
+    return new Promise((res) => {
       chrome.tabGroups.query({}, (tgList) => {
         const tgs = tgList.reduce((acc, tg) => {
           const tgid = _btoa(tg.title);
@@ -43,7 +43,7 @@ const TabGroups = {
       })
     })
       .then((tg) => {
-        return new Promise((res, rej) => {
+        return new Promise((res) => {
           chrome.tabs.query({}, (tabs) => {
             tg.tabs = tabs
               .filter((t) => { return tg.id === t.groupId })
@@ -53,7 +53,7 @@ const TabGroups = {
         });
       })
       .then((tg) => {
-        return new Promise((res, rej) => {
+        return new Promise((res) => {
           const data = {};
           data[tgid] = tg;
           chrome.storage.sync.set(data, () => {
@@ -62,7 +62,7 @@ const TabGroups = {
         });
       })
       .then((tg) => {
-        return new Promise((res, rej) => {
+        return new Promise((res) => {
           chrome.tabs.remove(tg.tabs.map((tab) => tab.id), () => {
             return res(tg);
           });
@@ -71,7 +71,7 @@ const TabGroups = {
   },
 
   deleteInactiveTabGroup: (tgid) => {
-    return new Promise((res, rej) => {
+    return new Promise((res) => {
       chrome.storage.sync.remove(tgid, () => { res() });
     });
   },
@@ -88,15 +88,11 @@ const TabGroups = {
     })
       .then((tg) => {
         const promises = [];
-        return new Promise((res, rej) => {
+        return new Promise((res) => {
           tg.tabs.forEach((tab) => {
             promises.push(
-              new Promise((_res, _) => {
-                const url = `javascript:(()=>{
-                document.querySelector('head').insertAdjacentHTML('beforeend', '<title>${tab.title}</title>');
-                document.addEventListener('visibilitychange', ()=>{window.location.href="${tab.url}"});
-              })() `;
-                chrome.tabs.create({ url: url, active: false }, (t) => { _res(t) });
+              new Promise((_res) => {
+                chrome.tabs.create({ url: tab.url, active: false }, (t) => { _res(t) });
               })
             );
           });
